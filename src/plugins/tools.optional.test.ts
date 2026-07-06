@@ -2965,6 +2965,63 @@ describe("resolvePluginTools optional tools", () => {
 
     expectResolvedToolNames(tools, ["optional_tool"]);
   });
+
+  it("falls back to runtime registry when manifest contracts.tools cannot match allowlist entries", () => {
+    // Regression test for the active-memory Lossless Claw tool visibility bug
+    // (issue #100537, PR #100675). When the allowlist contains plugin tool
+    // names that are NOT declared in any plugin's manifest contracts.tools,
+    // the manifest-based pre-filter (resolvePluginToolRuntimePluginIds)
+    // produces an empty onlyPluginIds list, and the runtime registry must be
+    // consulted instead of returning early with zero tools.
+    const context = {
+      ...createContext(),
+      config: {
+        ...createContext().config,
+        plugins: {
+          ...createContext().config.plugins,
+          entries: {
+            "optional-demo": { enabled: true },
+          },
+        },
+      },
+    };
+    const config = context.config;
+    // Manifest declares only "optional_tool" in contracts.tools.
+    installToolManifestSnapshot({
+      config,
+      plugin: {
+        id: "optional-demo",
+        origin: "bundled",
+        enabledByDefault: true,
+        channels: [],
+        providers: [],
+        contracts: {
+          tools: ["optional_tool"],
+        },
+      },
+    });
+    // Runtime registry registers an external-style tool name (e.g. lcm_grep)
+    // that is NOT listed in the manifest contracts.tools.
+    const entry: MockRegistryToolEntry = {
+      pluginId: "optional-demo",
+      optional: false,
+      source: "/tmp/optional-demo.js",
+      names: ["lcm_grep"],
+      factory: () => makeTool("lcm_grep"),
+    };
+    const registry = createToolRegistry([entry]);
+    loadOpenClawPluginsMock.mockReturnValue(registry);
+
+    const tools = resolvePluginTools(
+      createResolveToolsParams({
+        context,
+        toolAllowlist: ["lcm_grep"],
+      }),
+    );
+
+    expectResolvedToolNames(tools, ["lcm_grep"]);
+    expectLoaderSelectedOnlyPluginIds(["optional-demo"]);
+  });
 });
 
 describe("buildPluginToolMetadataKey", () => {

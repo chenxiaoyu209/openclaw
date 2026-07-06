@@ -630,6 +630,37 @@ function resolvePluginToolRuntimePluginIds(params: {
       pluginIds.add(plugin.id);
     }
   }
+  // When the manifest contracts.tools pre-filter cannot match any allowlist
+  // entry, fall back to all enabled plugins that declare tool contracts so
+  // the runtime registry (which may hold tools registered via registerTool()
+  // but not declared in the manifest contracts.tools) gets a chance to match.
+  if (pluginIds.size === 0 && allowlist.size > 0) {
+    for (const plugin of snapshot.plugins) {
+      if (
+        !isManifestPluginAvailableForControlPlane({
+          snapshot,
+          plugin,
+          config: params.config,
+        })
+      ) {
+        continue;
+      }
+      if (
+        normalizedPlugins.entries[plugin.id]?.enabled === false ||
+        normalizedPlugins.deny.includes(plugin.id)
+      ) {
+        continue;
+      }
+      if (denylistBlocksPlugin({ pluginId: plugin.id, denylist })) {
+        continue;
+      }
+      const toolNames = plugin.contracts?.tools ?? [];
+      if (toolNames.length === 0) {
+        continue;
+      }
+      pluginIds.add(plugin.id);
+    }
+  }
   return [...pluginIds].toSorted((left, right) => left.localeCompare(right));
 }
 

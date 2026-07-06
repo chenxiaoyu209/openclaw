@@ -410,6 +410,46 @@ describe("resolveEmbeddedAttemptToolConstructionPlan", () => {
     );
   });
 
+  it("materializes only plugin candidates for external plugin tool names (e.g. lcm_*)", () => {
+    expectConstructionPlan(
+      resolveEmbeddedAttemptToolConstructionPlan({
+        toolsAllow: ["lcm_grep", "lcm_describe", "lcm_expand_query"],
+      }),
+      {
+        constructTools: true,
+        includeCoreTools: false,
+        runtimeToolAllowlist: ["lcm_grep", "lcm_describe", "lcm_expand_query"],
+        coding: {
+          includeBaseCodingTools: false,
+          includeShellTools: false,
+          includeChannelTools: true,
+          includeOpenClawTools: false,
+          includePluginTools: true,
+        },
+      },
+    );
+  });
+
+  it("materializes only plugin candidates for unknown tool names not in core factory sets", () => {
+    expectConstructionPlan(
+      resolveEmbeddedAttemptToolConstructionPlan({
+        toolsAllow: ["my_custom_memory_tool"],
+      }),
+      {
+        constructTools: true,
+        includeCoreTools: false,
+        runtimeToolAllowlist: ["my_custom_memory_tool"],
+        coding: {
+          includeBaseCodingTools: false,
+          includeShellTools: false,
+          includeChannelTools: true,
+          includeOpenClawTools: false,
+          includePluginTools: true,
+        },
+      },
+    );
+  });
+
   it("skips local construction when only bundled tool runtimes can match", () => {
     expectConstructionPlan(
       resolveEmbeddedAttemptToolConstructionPlan({ toolsAllow: ["strict__strict_probe"] }),
