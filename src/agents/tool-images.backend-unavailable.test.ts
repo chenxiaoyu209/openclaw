@@ -10,6 +10,9 @@ const { backendUnavailableError, getImageMetadataMock, readImageMetadataFromHead
   }));
 
 const PNG_BASE64 = "iVBORw0KGgo=";
+// Base64 payload that doesn't match any sniffable image magic bytes (png/jpeg/gif)
+// so inferMimeTypeFromBase64 returns undefined and the explicit mimeType is used.
+const UNSUPPORTED_MIME_BASE64 = "AAAA";
 
 async function importSanitizer() {
   vi.resetModules();
@@ -17,6 +20,9 @@ async function importSanitizer() {
     IMAGE_REDUCE_QUALITY_STEPS: [85, 75],
     MAX_IMAGE_INPUT_PIXELS: 25_000_000,
     buildImageResizeSideGrid: () => [1200],
+    convertImageToPng: async () => {
+      throw backendUnavailableError;
+    },
     getImageMetadata: getImageMetadataMock,
     isImageProcessorUnavailableError: (error: unknown) => error === backendUnavailableError,
     readImageMetadataFromHeader: readImageMetadataFromHeaderMock,
@@ -54,6 +60,27 @@ describe("tool image sanitizer without native image backend", () => {
 
     const out = await sanitizeContentBlocksImages(
       [{ type: "image" as const, data: PNG_BASE64, mimeType: "image/png" }],
+      "test",
+      { maxDimensionPx: 64, maxBytes: 1024 },
+    );
+
+    expect(out).toStrictEqual([
+      {
+        type: "text",
+        text: "[test] omitted image payload: Error: missing image backend",
+      },
+    ]);
+  });
+
+  it("drops unsupported-MIME images when the backend is unavailable", async () => {
+    // regression for #102323: convertImageToPng is called for unsupported MIME
+    // types (e.g. image/heic), and if the backend is unavailable the sanitizer
+    // must return a text fallback instead of crashing.
+    readImageMetadataFromHeaderMock.mockReturnValueOnce({ width: 48, height: 48 });
+    const { sanitizeContentBlocksImages } = await importSanitizer();
+
+    const out = await sanitizeContentBlocksImages(
+      [{ type: "image" as const, data: UNSUPPORTED_MIME_BASE64, mimeType: "image/heic" }],
       "test",
       { maxDimensionPx: 64, maxBytes: 1024 },
     );
