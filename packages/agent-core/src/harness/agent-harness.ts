@@ -443,7 +443,9 @@ export class CoreAgentHarness<
         snapshotOptions,
       );
       return resolveAgentCoreStreamFn(this.runtime)(model, context, {
-        cacheRetention: requestOptions.cacheRetention,
+        ...(requestOptions.cacheRetention !== undefined && {
+          cacheRetention: requestOptions.cacheRetention,
+        }),
         headers: requestOptions.headers,
         maxRetries: requestOptions.maxRetries,
         maxRetryDelayMs: requestOptions.maxRetryDelayMs,
