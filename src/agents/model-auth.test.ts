@@ -1794,6 +1794,59 @@ describe("resolveApiKeyForProvider – synthetic local auth for custom providers
     });
   });
 
+  it("allows plugin synthetic auth when allowAuthProfileFallback is false but allowPluginSyntheticAuth is true", async () => {
+    // This tests the fix for https://github.com/openclaw/openclaw/issues/110103
+    // Gateway-routed calls use allowAuthProfileFallback: false to exclude profile fallback,
+    // but should still allow plugin synthetic auth (e.g., ADC hooks) to resolve.
+    // We use the Ollama provider which has a mock that returns synthetic local auth.
+    const auth = await resolveApiKeyForProvider({
+      provider: "ollama-test",
+      cfg: {
+        models: {
+          providers: {
+            "ollama-test": {
+              api: "ollama",
+              baseUrl: "http://192.168.1.100:11434",
+              models: [{ id: "llama3", name: "Llama 3" }],
+            },
+          },
+        },
+      },
+      store: { version: 1, profiles: {} },
+      allowAuthProfileFallback: false,
+      // Default behavior: allowPluginSyntheticAuth defaults to true
+    });
+
+    // Should successfully resolve plugin synthetic auth despite allowAuthProfileFallback: false
+    expectAuthFields(auth, {
+      apiKey: "ollama-local",
+      source: `models.providers.ollama-test (synthetic local key)`,
+      mode: "api-key",
+    });
+  });
+
+  it("respects allowPluginSyntheticAuth: false to block plugin synthetic auth", async () => {
+    // When explicitly disabled, plugin synthetic auth should not be used
+    await expect(
+      resolveApiKeyForProvider({
+        provider: "anthropic-vertex",
+        cfg: {
+          models: {
+            providers: {
+              "anthropic-vertex": {
+                api: "anthropic-vertex",
+                models: [{ id: "claude-haiku-4-5", name: "Claude Haiku 4.5" }],
+              },
+            },
+          },
+        },
+        store: { version: 1, profiles: {} },
+        allowAuthProfileFallback: false,
+        allowPluginSyntheticAuth: false,
+      }),
+    ).rejects.toThrow(/No API key found for provider/);
+  });
+
   it("prefers a custom Ollama provider SecretRef runtime key over plugin synthetic auth", async () => {
     const providerConfig = {
       ...createCustomProviderConfig("http://192.168.178.122:11435", "qwen3:14b", "Qwen 3 14B"),

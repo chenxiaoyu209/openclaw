@@ -998,7 +998,7 @@ export function hasRuntimeAvailableProviderAuth(params: {
       provider,
       runtimeLookup: params.runtimeLookup,
     }) &&
-    resolveSyntheticLocalProviderAuth({ cfg: params.cfg, provider })
+    resolveSyntheticLocalProviderAuth({ cfg: params.cfg, provider, allowPluginSyntheticAuth: true })
   ) {
     return true;
   }
@@ -1210,6 +1210,10 @@ export async function resolveApiKeyForProvider(params: {
   modelApi?: string;
   /** Keep SecretRef-backed model credentials opaque until a sentinel-aware transport boundary. */
   secretSentinels?: boolean;
+  /** Allow plugin synthetic auth resolution (e.g., ADC hooks). Defaults to true.
+   * This is separate from allowAuthProfileFallback to support gateway-routed
+   * attempts that exclude profile fallback but still need plugin-owned credentials. */
+  allowPluginSyntheticAuth?: boolean;
 }): Promise<ResolvedProviderAuth> {
   const { provider, cfg, profileId, preferredProfile } = params;
   // A failed explicit ref owns the provider. Stop before profile/env discovery so requests cannot
@@ -1643,7 +1647,7 @@ export async function resolveApiKeyForProvider(params: {
     provider,
     modelApi: params.modelApi,
     secretSentinels: params.secretSentinels,
-    allowPluginSyntheticAuth: params.allowAuthProfileFallback !== false,
+    allowPluginSyntheticAuth: params.allowPluginSyntheticAuth ?? true,
   });
   if (syntheticLocalAuth) {
     return syntheticLocalAuth;
@@ -1794,7 +1798,7 @@ export async function hasAvailableAuthForProvider(params: {
   if (resolveUsableCustomProviderApiKey({ cfg, provider })) {
     return true;
   }
-  if (resolveSyntheticLocalProviderAuth({ cfg, provider })) {
+  if (resolveSyntheticLocalProviderAuth({ cfg, provider, allowPluginSyntheticAuth: true })) {
     return true;
   }
   const store =
@@ -1866,6 +1870,7 @@ export async function getApiKeyForModel(params: {
   allowAuthProfileFallback?: boolean;
   skipSetupProviderFallback?: boolean;
   secretSentinels?: boolean;
+  allowPluginSyntheticAuth?: boolean;
 }): Promise<ResolvedProviderAuth> {
   return resolveApiKeyForProvider({
     provider: params.model.provider,
@@ -1882,6 +1887,7 @@ export async function getApiKeyForModel(params: {
     modelId: params.model.id,
     modelApi: params.model.api,
     secretSentinels: params.secretSentinels,
+    allowPluginSyntheticAuth: params.allowPluginSyntheticAuth ?? true,
   });
 }
 
